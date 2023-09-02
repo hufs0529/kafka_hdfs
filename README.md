@@ -5,6 +5,8 @@
     <img alt="kafka" src="https://github.com/hufs0529/kafka_hdfs/assets/81501114/c93a49a1-767a-4ba5-b7e9-1020f619dbc8" alt="Logo" width="150" height="100">
     <img alt="hdfs" src="https://github.com/hufs0529/kafka_hdfs/assets/81501114/3ca933e2-81a6-4d23-81b5-d987bfbbb5bb" alt="Logo" width="150" height="100">
     <img alt="docker-compose" src="https://github.com/hufs0529/kafka_hdfs/assets/81501114/82a79a6b-823e-4ada-a36d-2a98183c778d" alt="Logo" width="150" height="100">
+    <img alt=s3" src="https://github.com/hufs0529/kafka_hdfs/assets/81501114/9127a01e-f3a0-48ca-a48d-d226595e6880" alt="Logo" width="150" height="100">
+
 
   </a>
 
@@ -16,7 +18,7 @@
     <br />
     <br />
   </h2>
-  <h3>Role: Spring API, Kafka, Hadoop</h3>
+  <h3>Role: Spring API, Kafka, Hadoop, S3</h3>
 
 </div>
 
@@ -96,6 +98,26 @@
               }
             }' http://localhost:8083/connectors
   ##### Kafka Connector은 API기반으로 통신하기 때문에 POST를 통해서 Config 설정이 가능하다
+
+### Spring 내 Kafka Consumer 설정
+
+      # "exam" 토픽과 "foo" Group에 대해서 Kafka Consumer 동작
+      public KafkaConsumer(HDFSConfig hdfsConfig) {
+              this.hdfsConfig = hdfsConfig;
+          }
+      
+          @KafkaListener(topics = "exam", groupId = "foo")
+          public void consume(String message) throws Exception {
+              System.out.println(String.format("Consumed message : %s", message));
+      
+              try {
+                  writeMessageToS3(message);
+              } catch (IOException e) {
+                  e.printStackTrace();
+              }
+          }
+
+    
 
 
 #### Spring 로그 추출
@@ -195,4 +217,27 @@
 
 
 
+### S3 적재
+##### 앞선 KafkaConsumer 클래스 내에 존재하는 s3 적재 함수를 이용해서 생성되는 날짜별로 s3에 적재
+        private void writeMessageToS3(String message) throws Exception {
 
+            BasicAWSCredentials awsCreds = new BasicAWSCredentials("", "");
+            AmazonS3 amazonS3 = AmazonS3ClientBuilder.standard()
+                    .withRegion(Regions.AP_NORTHEAST_2)
+                    .withCredentials(new AWSStaticCredentialsProvider(awsCreds))
+                    .build();
+    
+            String s3Bucket = "{bucket}";
+            String s3ObjectKey = generateFileName();// S3 버킷에 저장될 객체의 키 (디렉토리 포함)
+    
+            // 메시지를 바이트 배열로 변환
+            byte[] messageBytes = message.getBytes();
+    
+            // S3 객체 메타데이터 설정 (선택 사항)
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(messageBytes.length);
+            metadata.setContentType("text/plain"); // MIME 타입 설정 (예: 텍스트)
+    
+            // S3에 객체 업로드
+            amazonS3.putObject(new PutObjectRequest(s3Bucket, s3ObjectKey, new ByteArrayInputStream(messageBytes), metadata));
+        }
